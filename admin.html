@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="admin-dashboard-container">
+        <h1>Admin Dashboard</h1>
+
+        <div id="add-teacher-section">
+            <h2>Add New Teacher</h2>
+            <form id="add-teacher-form">
+                <label for="teacher-email">Email:</label>
+                <input type="email" id="teacher-email" required>
+                <label for="teacher-name">Name:</label>
+                <input type="text" id="teacher-name" required>
+                <label for="teacher-department">Department:</label>
+                <input type="text" id="teacher-department" required>
+                <label for="teacher-subject">Subject:</label>
+                <input type="text" id="teacher-subject" required>
+                <button type="submit">Add Teacher</button>
+            </form>
+        </div>
+
+        <section id="manage-teachers-section">
+            <h2>Manage Teachers</h2>
+            <table id="teachers-table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Subject</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Teachers will be populated dynamically -->
+                </tbody>
+            </table>
+        </section>
+
+        <section id="approve-students-section">
+            <h2>Approve Students</h2>
+            <table id="students-table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Students will be populated dynamically -->
+                </tbody>
+            </table>
+        </section>
+
+        <a href="admin_login.html">
+            <button onclick="logout()">Logout</button>
+        </a>
+        
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+        import { getDatabase, ref, set, update, remove, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAZQKHuXmNqN_N7ULM9oWBDJW2ykED7BkE",
+            authDomain: "bookingsystem12.firebaseapp.com",
+            projectId: "bookingsystem12",
+            storageBucket: "bookingsystem12.appspot.com",
+            messagingSenderId: "151056229871",
+            appId: "1:151056229871:web:04ef8186ef147fda67421a"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        const addTeacherForm = document.getElementById('add-teacher-form');
+        const teachersTable = document.getElementById('teachers-table').getElementsByTagName('tbody')[0];
+        const studentsTable = document.getElementById('students-table').getElementsByTagName('tbody')[0];
+
+        let currentUser = null;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                populateTeachers();
+                populateStudents();
+            } else {
+                window.location.href = 'admin_login.html'; // Redirect to login if not authenticated
+            }
+        });
+
+        function populateTeachers() {
+            const teachersRef = ref(db, 'teachers');
+            onValue(teachersRef, (snapshot) => {
+                const data = snapshot.val();
+                teachersTable.innerHTML = ''; // Clear previous data
+                if (data) {
+                    for (let key in data) {
+                        const teacher = data[key];
+                        const row = teachersTable.insertRow();
+                        row.insertCell(0).textContent = teacher.email;
+                        row.insertCell(1).textContent = teacher.name;
+                        row.insertCell(2).textContent = teacher.department;
+                        row.insertCell(3).textContent = teacher.subject;
+                        row.insertCell(4).textContent = teacher.status;
+                        const actionCell = row.insertCell(5);
+                        const editButton = document.createElement('button');
+                        editButton.textContent = 'Edit';
+                        editButton.className = 'button button-edit';
+                        editButton.onclick = () => editTeacher(key, teacher);
+                        actionCell.appendChild(editButton);
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete';
+                        deleteButton.className = 'button button-delete';
+                        deleteButton.onclick = () => deleteTeacher(key);
+                        actionCell.appendChild(deleteButton);
+                        const approveButton = document.createElement('button');
+                        approveButton.textContent = teacher.status === 'pending' ? 'Approve' : 'Unapprove';
+                        approveButton.className = 'button button-approve';
+                        approveButton.onclick = () => toggleTeacherApproval(key, teacher.status);
+                        actionCell.appendChild(approveButton);
+                    }
+                }
+            });
+        }
+
+        function populateStudents() {
+            const studentsRef = ref(db, 'students');
+            onValue(studentsRef, (snapshot) => {
+                const data = snapshot.val();
+                studentsTable.innerHTML = ''; // Clear previous data
+                if (data) {
+                    for (let key in data) {
+                        const student = data[key];
+                        const row = studentsTable.insertRow();
+                        row.insertCell(0).textContent = student.email;
+                        row.insertCell(1).textContent = student.name;
+                        row.insertCell(2).textContent = student.status;
+                        const actionCell = row.insertCell(3);
+                        const approveButton = document.createElement('button');
+                        approveButton.textContent = student.status === 'pending' ? 'Approve' : 'Unapprove';
+                        approveButton.className = 'button button-approve';
+                        approveButton.onclick = () => toggleStudentApproval(key, student.status);
+                        actionCell.appendChild(approveButton);
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete';
+                        deleteButton.className = 'button button-delete';
+                        deleteButton.onclick = () => deleteStudent(key);
+                        actionCell.appendChild(deleteButton);
+                    }
+                }
+            });
+        }
+
+        addTeacherForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('teacher-email').value;
+            const name = document.getElementById('teacher-name').value;
+            const department = document.getElementById('teacher-department').value;
+            const subject = document.getElementById('teacher-subject').value;
+
+            try {
+                const newTeacherRef = ref(db, 'teachers');
+                const newTeacherKey = push(newTeacherRef).key; // Generate a new unique key
+                await set(ref(db, `teachers/${newTeacherKey}`), {
+                    email: email,
+                    name: name,
+                    department: department,
+                    subject: subject,
+                    status: 'approved'
+                });
+                alert('Teacher added successfully.');
+                addTeacherForm.reset();
+            } catch (error) {
+                console.error('Error adding teacher: ', error);
+                alert('Error adding teacher: ' + error.message);
+            }
+        });
+
+        function editTeacher(teacherId, teacher) {
+            // Logic for editing teacher (show modal or similar)
+            const email = prompt('Edit Email:', teacher.email);
+            const name = prompt('Edit Name:', teacher.name);
+            const department = prompt('Edit Department:', teacher.department);
+            const subject = prompt('Edit Subject:', teacher.subject);
+
+            if (email !== null && name !== null && department !== null && subject !== null) {
+                update(ref(db, `teachers/${teacherId}`), { email, name, department, subject })
+                    .then(() => {
+                        alert('Teacher updated successfully.');
+                        populateTeachers();
+                    })
+                    .catch((error) => {
+                        console.error('Error updating teacher: ', error);
+                        alert('Error updating teacher: ' + error.message);
+                    });
+            }
+        }
+
+        function deleteTeacher(teacherId) {
+            if (confirm('Are you sure you want to delete this teacher?')) {
+                remove(ref(db, `teachers/${teacherId}`))
+                    .then(() => {
+                        alert('Teacher deleted successfully.');
+                        populateTeachers();
+                    })
+                    .catch((error) => {
+                        console.error('Error deleting teacher: ', error);
+                        alert('Error deleting teacher: ' + error.message);
+                    });
+            }
+        }
+
+        function toggleTeacherApproval(teacherId, currentStatus) {
+            const newStatus = currentStatus === 'pending' ? 'approved' : 'pending';
+            update(ref(db, `teachers/${teacherId}`), { status: newStatus })
+                .then(() => {
+                    alert('Teacher status updated successfully.');
+                    populateTeachers();
+                })
+                .catch((error) => {
+                    console.error('Error updating teacher status: ', error);
+                    alert('Error updating teacher status: ' + error.message);
+                });
+        }
+
+        function deleteStudent(studentId) {
+            if (confirm('Are you sure you want to delete this student?')) {
+                remove(ref(db, `students/${studentId}`))
+                    .then(() => {
+                        alert('Student deleted successfully.');
+                        populateStudents();
+                    })
+                    .catch((error) => {
+                        console.error('Error deleting student: ', error);
+                        alert('Error deleting student: ' + error.message);
+                    });
+            }
+        }
+
+        function toggleStudentApproval(studentId, currentStatus) {
+            const newStatus = currentStatus === 'pending' ? 'approved' : 'pending';
+            update(ref(db, `students/${studentId}`), { status: newStatus })
+                .then(() => {
+                    alert('Student status updated successfully.');
+                    populateStudents();
+                })
+                .catch((error) => {
+                    console.error('Error updating student status: ', error);
+                    alert('Error updating student status: ' + error.message);
+                });
+        }
+
+        function logout() {
+            signOut(auth)
+                .then(() => {
+                    window.location.href = 'admin_login.html';
+                })
+                .catch((error) => {
+                    console.error('Error signing out: ', error);
+                    alert('Error signing out: ' + error.message);
+                });
+        }
+    </script>
+
+<style>
+    body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
+}
+
+.admin-dashboard-container {
+    max-width: 1200px;
+    margin: 50px auto;
+    padding: 20px;
+    background-color: #fff;
+   
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    min-height: 100vh;
+}
+
+h1, h2 {
+    text-align: center;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+form label {
+    margin: 10px 0 5px;
+}
+
+form input {
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+button {
+    padding: 10px;
+    margin-top: 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+table, th, td {
+    border: 1px solid #ddd;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+}
+
+th {
+    background-color: #f2f2f2;
+}
+
+.button {
+    margin-right: 5px;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.button-edit {
+    background-color: #2196F3;
+    color: white;
+}
+
+.button-edit:hover {
+    background-color: #0b7dda;
+}
+
+.button-delete {
+    background-color: #f44336;
+    color: white;
+}
+
+.button-delete:hover {
+    background-color: #da190b;
+}
+
+.button-approve {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.button-approve:hover {
+    background-color: #45a049;
+}
+
+</style>
+
+
+</body>
+</html>

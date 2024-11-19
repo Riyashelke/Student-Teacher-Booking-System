@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .dashboard-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 650px;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        section {
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin-bottom: 5px;
+            color: #666;
+        }
+
+        input, select, textarea, button {
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input:focus, select:focus, textarea:focus, button:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        textarea {
+            resize: vertical;
+        }
+
+        .logout-button {
+            background-color: #dc3545;
+        }
+
+        .logout-button:hover {
+            background-color: #c82333;
+        }
+
+        .appointments-container {
+            margin-top: 20px;
+        }
+
+        .appointment-item {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+
+        .appointment-item p {
+            margin: 5px 0;
+        }
+
+        .status-approved {
+            color: green;
+        }
+
+        .status-pending {
+            color: orange;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <h1>Student Dashboard</h1>
+
+        <section id="appointment-section">
+            <h2>Book Appointment</h2>
+            <form id="appointment-form">
+                <label for="teacher-select">Select Teacher:</label>
+                <select id="teacher-select" required>
+                    <option value="">--Select Teacher--</option>
+                    <!-- Options will be populated dynamically -->
+                </select>
+                <label for="appointment-date">Date:</label>
+                <input type="date" id="appointment-date" required>
+                <label for="appointment-time">Time:</label>
+                <input type="time" id="appointment-time" required>
+                <button type="submit">Book Appointment</button>
+            </form>
+        </section>
+
+        <section id="message-section">
+            <h2>Send Message</h2>
+            <form id="message-form">
+                <label for="message-teacher-select">Select Teacher:</label>
+                <select id="message-teacher-select" required>
+                    <option value="">--Select Teacher--</option>
+                    <!-- Options will be populated dynamically -->
+                </select>
+                <label for="message-content">Message:</label>
+                <textarea id="message-content" rows="4" required></textarea>
+                <button type="submit">Send Message</button>
+            </form>
+        </section>
+
+        <section id="appointments-container">
+            <h2>Your Appointments</h2>
+            <div id="appointments-list" class="appointments-container">
+                <!-- Appointments will be listed here -->
+            </div>
+        </section>
+        <a href="student_login.html">
+            <button onclick="logout()">Logout</button>
+        </a>
+        
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+        import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAZQKHuXmNqN_N7ULM9oWBDJW2ykED7BkE",
+            authDomain: "bookingsystem12.firebaseapp.com",
+            projectId: "bookingsystem12",
+            storageBucket: "bookingsystem12.appspot.com",
+            messagingSenderId: "151056229871",
+            appId: "1:151056229871:web:04ef8186ef147fda67421a"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        const appointmentForm = document.getElementById('appointment-form');
+        const messageForm = document.getElementById('message-form');
+        const teacherSelect = document.getElementById('teacher-select');
+        const messageTeacherSelect = document.getElementById('message-teacher-select');
+        const appointmentsList = document.getElementById('appointments-list');
+
+        let currentUser = null;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                populateTeacherOptions();
+                loadAppointments();
+            } else {
+                window.location.href = 'student_login.html'; // Redirect to login if not authenticated
+            }
+        });
+
+        function populateTeacherOptions() {
+            const teachersRef = ref(db, 'teachers');
+            onValue(teachersRef, (snapshot) => {
+                const data = snapshot.val();
+                teacherSelect.innerHTML = '<option value="">--Select Teacher--</option>';
+                messageTeacherSelect.innerHTML = '<option value="">--Select Teacher--</option>';
+                if (data) {
+                    for (let key in data) {
+                        const option = document.createElement('option');
+                        option.value = key; // Use numeric ID for teacher
+                        option.textContent = data[key].email; // Assuming 'email' is the teacher's email
+                        teacherSelect.appendChild(option);
+                        messageTeacherSelect.appendChild(option.cloneNode(true));
+                    }
+                }
+            });
+        }
+
+        appointmentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const teacherId = document.getElementById('teacher-select').value;
+            const date = document.getElementById('appointment-date').value;
+            const time = document.getElementById('appointment-time').value;
+            const studentEmail = currentUser.email;
+
+            if (teacherId && date && time) {
+                try {
+                    await push(ref(db, 'appointments'), {
+                        teacherId: teacherId,
+                        studentId: currentUser.uid,
+                        studentEmail: studentEmail,
+                        date: date,
+                        time: time,
+                        status: 'pending'
+                    });
+                    alert('Appointment booked successfully.');
+                    appointmentForm.reset();
+                    loadAppointments();
+                } catch (error) {
+                    console.error('Error booking appointment: ', error);
+                    alert('Error booking appointment: ' + error.message);
+                }
+            } else {
+                alert('Please fill in all fields.');
+            }
+        });
+
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const teacherId = document.getElementById('message-teacher-select').value;
+            const messageContent = document.getElementById('message-content').value;
+            const studentEmail = currentUser.email;
+
+            if (teacherId && messageContent) {
+                try {
+                    await push(ref(db, 'messages'), {
+                        teacherId: teacherId,
+                        studentId: currentUser.uid,
+                        studentEmail: studentEmail,
+                        content: messageContent,
+                        timestamp: new Date().toISOString()
+                    });
+                    alert('Message sent successfully.');
+                    messageForm.reset();
+                } catch (error) {
+                    console.error('Error sending message: ', error);
+                    alert('Error sending message: ' + error.message);
+                }
+            } else {
+                alert('Please fill in all fields.');
+            }
+        });
+
+        function loadAppointments() {
+            const appointmentsRef = ref(db, 'appointments');
+            onValue(appointmentsRef, (snapshot) => {
+                const data = snapshot.val();
+                appointmentsList.innerHTML = '';
+                if (data) {
+                    for (let key in data) {
+                        if (data[key].studentId === currentUser.uid) {
+                            const appointmentItem = document.createElement('div');
+                            appointmentItem.classList.add('appointment-item');
+
+                            const appointmentDate = document.createElement('p');
+                            appointmentDate.textContent = `Date: ${data[key].date}`;
+                            appointmentItem.appendChild(appointmentDate);
+
+                            const appointmentTime = document.createElement('p');
+                            appointmentTime.textContent = `Time: ${data[key].time}`;
+                            appointmentItem.appendChild(appointmentTime);
+
+                            const appointmentStatus = document.createElement('p');
+                            appointmentStatus.textContent = `Status: ${data[key].status}`;
+                            appointmentStatus.classList.add(data[key].status === 'approved' ? 'status-approved' : 'status-pending');
+                            appointmentItem.appendChild(appointmentStatus);
+
+                            appointmentsList.appendChild(appointmentItem);
+                        }
+                    }
+                }
+            });
+        }
+
+        function logout() {
+            signOut(auth).then(() => {
+                window.location.href = 'student_login.html';
+            }).catch((error) => {
+                console.error('Error signing out: ', error);
+                alert('Error signing out: ' + error.message);
+            });
+        }
+    </script>
+
+<style>
+
+
+    @media (min-width: 600px) {
+                .button-container {
+                    flex-direction: row;
+                    justify-content: center;
+                }
+    
+                .button {
+                    width: auto;
+                    margin: 0 5px;
+                }
+            }
+    
+            @media (min-width: 768px) {
+                .h {
+                    font-size: 2em;
+                }
+    
+                .button {
+                    padding: 15px 30px;
+                    font-size: 1.1em;
+                }
+            }
+    
+            @media (min-width: 1024px) {
+                .h {
+                    font-size: 2.5em;
+                }
+    
+                .button {
+                    padding: 20px 40px;
+                    font-size: 1.2em;
+                }
+            }
+        </style>
+</body>
+</html>

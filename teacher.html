@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard</title>
+    <style>
+        /* Reset some default browser styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        }
+
+        header {
+            background: #f4f4f4;
+            padding: 10px 0;
+            text-align: center;
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        main {
+            margin: 20px 0;
+        }
+
+        section {
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+
+        .status-pending {
+            color: orange;
+        }
+
+        .status-approved {
+            color: green;
+        }
+
+        .status-canceled {
+            color: red;
+        }
+
+        .button {
+            padding: 8px 16px;
+            border: none;
+            cursor: pointer;
+            color: #fff;
+            margin: 2px;
+            border-radius: 4px;
+        }
+
+        .button-approve {
+            background-color: green;
+        }
+
+        .button-cancel {
+            background-color: red;
+        }
+
+        .button-delete {
+            background-color: darkred;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="email"],
+        input[type="date"],
+        input[type="time"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+
+        footer {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 600px) {
+            th, td {
+                padding: 6px;
+                font-size: 14px;
+            }
+
+            .button {
+                padding: 6px 12px;
+                font-size: 14px;
+            }
+
+            .dashboard-container {
+                padding: 10px;
+            }
+
+            table {
+                margin: 10px 0;
+            }
+
+            header {
+                padding: 20px 0;
+            }
+        }
+
+        @media (min-width: 601px) and (max-width: 900px) {
+            th, td {
+                padding: 8px;
+                font-size: 16px;
+            }
+
+            .button {
+                padding: 8px 16px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header>
+            <h1>Teacher Dashboard</h1>
+        </header>
+        <main>
+            <section id="appointments-section">
+                <h2>Appointments</h2>
+                <table id="appointments-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Student Email</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Appointments will be populated here -->
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="messages-section">
+                <h2>Messages</h2>
+                <table id="messages-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Student Email</th>
+                            <th>Message</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Messages will be populated here -->
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="schedule-section">
+                <h2>Schedule Appointment</h2>
+                <form id="schedule-form">
+                    <div class="form-group">
+                        <label for="student-email">Student Email:</label>
+                        <input type="email" id="student-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="appointment-date">Date:</label>
+                        <input type="date" id="appointment-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="appointment-time">Time:</label>
+                        <input type="time" id="appointment-time" required>
+                    </div>
+                    <button type="submit" class="button button-approve">Schedule Appointment</button>
+                </form>
+            </section>
+        </main>
+        <footer>
+            <a href="teacher_login.html"><button type="button" onclick="logout()">Logout</button></a>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+        import { getDatabase, ref, onValue, update, remove, push, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAZQKHuXmNqN_N7ULM9oWBDJW2ykED7BkE",
+            authDomain: "bookingsystem12.firebaseapp.com",
+            projectId: "bookingsystem12",
+            storageBucket: "bookingsystem12.appspot.com",
+            messagingSenderId: "151056229871",
+            appId: "1:151056229871:web:04ef8186ef147fda67421a"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        const appointmentsTable = document.getElementById('appointments-table').getElementsByTagName('tbody')[0];
+        const messagesTable = document.getElementById('messages-table').getElementsByTagName('tbody')[0];
+        const scheduleForm = document.getElementById('schedule-form');
+        const studentEmailInput = document.getElementById('student-email');
+        const appointmentDateInput = document.getElementById('appointment-date');
+        const appointmentTimeInput = document.getElementById('appointment-time');
+
+        let currentUser = null;
+        let currentTeacherId = null;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                fetchTeacherId(user.email);
+            } else {
+                window.location.href = 'teacher_login.html'; // Redirect to login if not authenticated
+            }
+        });
+
+        function fetchTeacherId(email) {
+            const teachersRef = ref(db, 'teachers');
+            const emailQuery = query(teachersRef, orderByChild('email'), equalTo(email));
+            onValue(emailQuery, (snapshot) => {
+                if (snapshot.exists()) {
+                    const teacherData = snapshot.val();
+                    currentTeacherId = Object.keys(teacherData)[0];
+                    populateAppointments();
+                    populateMessages();
+                } else {
+                    console.error('Teacher not found');
+                }
+            });
+        }
+
+        function populateAppointments() {
+            const appointmentsRef = ref(db, 'appointments');
+            onValue(appointmentsRef, (snapshot) => {
+                const data = snapshot.val();
+                appointmentsTable.innerHTML = ''; // Clear previous data
+                if (data) {
+                    for (let key in data) {
+                        const appointment = data[key];
+                        if (appointment.teacherId === currentTeacherId) {
+                            const row = appointmentsTable.insertRow();
+                            row.insertCell(0).textContent = appointment.date;
+                            row.insertCell(1).textContent = appointment.time;
+                            row.insertCell(2).textContent = appointment.studentEmail;
+                            const statusCell = row.insertCell(3);
+                            statusCell.textContent = appointment.status;
+                            statusCell.className = `status-${appointment.status.toLowerCase()}`;
+                            const actionCell = row.insertCell(4);
+                            const approveButton = document.createElement('button');
+                            approveButton.textContent = 'Approve';
+                            approveButton.className = 'button button-approve';
+                            approveButton.onclick = () => changeAppointmentStatus(key, 'approved');
+                            actionCell.appendChild(approveButton);
+                            const cancelButton = document.createElement('button');
+                            cancelButton.textContent = 'Cancel';
+                            cancelButton.className = 'button button-cancel';
+                            cancelButton.onclick = () => changeAppointmentStatus(key, 'canceled');
+                            actionCell.appendChild(cancelButton);
+                            const deleteButton = document.createElement('button');
+                            deleteButton.textContent = 'Delete';
+                            deleteButton.className = 'button button-delete';
+                            deleteButton.onclick = () => deleteAppointment(key);
+                            actionCell.appendChild(deleteButton);
+                        }
+                    }
+                }
+            });
+        }
+
+        function changeAppointmentStatus(appointmentId, status) {
+            update(ref(db, 'appointments/' + appointmentId), { status })
+                .then(() => {
+                    console.log('Appointment status updated');
+                })
+                .catch((error) => {
+                    console.error('Error updating appointment status:', error);
+                });
+        }
+
+        function deleteAppointment(appointmentId) {
+            remove(ref(db, 'appointments/' + appointmentId))
+                .then(() => {
+                    console.log('Appointment deleted');
+                })
+                .catch((error) => {
+                    console.error('Error deleting appointment:', error);
+                });
+        }
+
+        function populateMessages() {
+            const messagesRef = ref(db, 'messages');
+            onValue(messagesRef, (snapshot) => {
+                const data = snapshot.val();
+                messagesTable.innerHTML = ''; // Clear previous data
+                if (data) {
+                    for (let key in data) {
+                        const message = data[key];
+                        const row = messagesTable.insertRow();
+                        row.insertCell(0).textContent = new Date(message.timestamp).toLocaleString();
+                        row.insertCell(1).textContent = message.studentEmail;
+                        row.insertCell(2).textContent = message.content;
+                        const actionCell = row.insertCell(3);
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete';
+                        deleteButton.className = 'button button-delete';
+                        deleteButton.onclick = () => deleteMessage(key);
+                        actionCell.appendChild(deleteButton);
+                    }
+                }
+            });
+        }
+
+        function deleteMessage(messageId) {
+            remove(ref(db, 'messages/' + messageId))
+                .then(() => {
+                    console.log('Message deleted');
+                })
+                .catch((error) => {
+                    console.error('Error deleting message:', error);
+                });
+        }
+
+        scheduleForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const studentEmail = studentEmailInput.value;
+            const appointmentDate = appointmentDateInput.value;
+            const appointmentTime = appointmentTimeInput.value;
+
+            if (studentEmail && appointmentDate && appointmentTime) {
+                const newAppointmentRef = push(ref(db, 'appointments'));
+                set(newAppointmentRef, {
+                    teacherId: currentTeacherId,
+                    studentEmail,
+                    date: appointmentDate,
+                    time: appointmentTime,
+                    status: 'pending'
+                })
+                .then(() => {
+                    console.log('Appointment scheduled');
+                    scheduleForm.reset();
+                })
+                .catch((error) => {
+                    console.error('Error scheduling appointment:', error);
+                });
+            } else {
+                console.error('Please fill in all fields');
+            }
+        });
+
+        function logout() {
+            signOut(auth).then(() => {
+                window.location.href = 'teacher_login.html';
+            }).catch((error) => {
+                console.error('Error signing out:', error);
+            });
+        }
+    </script>
+</body>
+</html>
